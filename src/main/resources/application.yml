@@ -15,11 +15,58 @@ spring:
   h2:
     console:
       enabled: true
+  mvc:
+    async:
+      request-timeout: 180000
 
 server:
   port: 8080
-  include-debug-info: true
+  # Stock default is 200. Pinned to 40 so the availability test can saturate the pool on a laptop.
+  # The failure mode is unchanged: each in-flight LLM call on a Tomcat thread consumes one worker.
+  tomcat:
+    mbeanregistry:
+      enabled: true
+    threads:
+      max: 40
   error:
     include-message: always
 
+management:
+  # Scrape metrics here so /actuator/prometheus still answers when all 8080 workers are busy.
+  server:
+    port: 8081
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      show-details: always
+      group:
+        # Process is up. A database or model outage must not restart the pod.
+        liveness:
+          include: livenessState
+        # Player API can be served. Ollama is omitted: a dead model must not
+        # pull player traffic out of the load balancer. Chat reports its own 503.
+        readiness:
+          include: readinessState,db
+  info:
+    java:
+      enabled: true
+    os:
+      enabled: true
+  metrics:
+    distribution:
+      percentiles-histogram:
+        http.server.requests: true
 
+# Baseline: chat on the Tomcat thread, ollama4j request timeout 120s.
+app:
+  chat:
+    stage: baseline
+    ollama-base-url: http://127.0.0.1:11434
+    async-enabled: false
+    pool-size: 8
+    read-timeout-ms: 120000

@@ -1,0 +1,6 @@
+# Hardened demo profile: chat off Tomcat + shorter ollama4j request timeout.
+app:
+  chat:
+    stage: timeouts
+    async-enabled: true
+    read-timeout-ms: 2000
